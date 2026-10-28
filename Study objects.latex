@@ -1,0 +1,269 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,booktabs}
+\usepackage[hidelinks]{hyperref}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+
+\title{Computing Road-Network Connectivity and Modeled Connections\newline among Paris Subcentres}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Study objects and coordinate system}
+
+The analysis uses the 44 existing classified subcentre polygons in the Paris
+study area, their saved functional types, and the project's urban-centre point
+(CBD). Subcentre selection and functional classification are retained without
+re-estimation. The map label RCOI denotes the existing all-high functional
+combination previously labelled Mixed: residential, commercial, office, and
+industrial. The residential variable is an OpenStreetMap address proxy.
+
+The road input contains 661,838 features within the circular Paris study area
+of radius 99.56~km. It includes motorways, trunk, primary, secondary, tertiary,
+unclassified, residential, living-street and service roads, and the available
+motorway, trunk, primary, secondary and tertiary links. Railway lines and
+additional walking-path categories are not included.
+
+Road geometries, subcentre polygons and the CBD are transformed to
+RGF93 / Lambert-93 (EPSG:2154). Computations use projected metre coordinates;
+reported route distances are converted to kilometres. Map display uses
+EPSG:3035, which does not change the previously calculated network distances.
+
+\section{Construction of the road graph}
+
+Let $G=(V,E)$ be the undirected road graph. Road geometries are separated into
+individual line strings, and consecutive existing vertices within each line
+string are connected by edges. Coordinates are quantized to a 0.01~m grid
+to identify shared vertices. The coordinate of the first occurrence is retained
+as the representative node location.
+
+For an original consecutive coordinate pair
+$\mathbf{q}_i=(x_i,y_i)$ and $\mathbf{q}_{i+1}=(x_{i+1},y_{i+1})$, the edge
+weight is its Euclidean segment length in metres:
+\begin{equation}
+  \ell_e=\left\|\mathbf{q}_{i+1}-\mathbf{q}_i\right\|_2
+  =\sqrt{(x_{i+1}-x_i)^2+(y_{i+1}-y_i)^2}.
+  \label{eq:edge-length}
+\end{equation}
+Consecutive coordinates assigned to the same node are discarded. Self-loops
+are removed, and parallel edges connecting the same node pair are collapsed
+to the minimum available segment length. Thus, edge weights retain the
+original segment lengths rather than being recalculated from rounded
+coordinates.
+
+Connections are introduced only at shared existing geometry vertices.
+Geometrically crossing lines are not automatically split at their crossings.
+The resulting graph contains 3,667,993 vertices and 3,881,228 edges. Node degree
+is calculated on this complete graph before assigning nodes to subcentre
+polygons:
+\begin{equation}
+  k_v=\left|\{u\in V:\{u,v\}\in E\}\right|.
+  \label{eq:degree}
+\end{equation}
+
+\section{Local connectivity within each subcentre}
+
+For subcentre polygon $P_s$, let $A_s$ be its projected polygon area expressed
+in square kilometres. Define the nodes intersecting that polygon as
+\begin{equation}
+  V_s=\{v\in V:\mathbf{q}_v\in P_s,\ k_v>0\}.
+\end{equation}
+Boundary intersections are included. The implementation checks that no
+assigned node intersects more than one subcentre polygon. Degrees are inherited
+from the complete road graph, so subcentre boundaries do not create artificial
+dead ends by clipping roads.
+
+Degree-two vertices are retained for routing but excluded from street-node
+and junction measures. This prevents ordinary geometry points along curved
+roads from being counted as intersections. Define
+\begin{align}
+  T_s &= \{v\in V_s:k_v\ne 2\}, &
+  J_s &= \{v\in V_s:k_v\ge 3\}, &
+  D_s &= \{v\in V_s:k_v=1\}.
+\end{align}
+Here, $T_s$ contains street nodes after excluding degree-two vertices,
+$J_s$ contains junctions, and $D_s$ contains dead ends.
+
+Street-node density and junction density are
+\begin{equation}
+  \rho_s^{T}=\frac{|T_s|}{A_s},
+  \qquad
+  \rho_s^{J}=\frac{|J_s|}{A_s}.
+  \label{eq:densities}
+\end{equation}
+Junction density, in junctions per square kilometre, is the primary local
+connectivity indicator. Mean street-node degree, mean junction degree, and
+the dead-end fraction are
+\begin{align}
+  \overline{k}_s^{T}
+    &=\frac{1}{|T_s|}\sum_{v\in T_s}k_v, &
+  \overline{k}_s^{J}
+    &=\frac{1}{|J_s|}\sum_{v\in J_s}k_v, &
+  f_s^{D}&=\frac{|D_s|}{|T_s|}.
+  \label{eq:local-degree}
+\end{align}
+Measures with zero denominators are recorded as missing. The outputs also
+report the counts of all graph vertices, degree-two vertices, dead ends,
+and junctions with degree at least four.
+
+Let $V^{\mathrm{LCC}}$ denote the largest connected component of the complete
+graph. The fraction of a subcentre's assigned graph vertices belonging to it is
+\begin{equation}
+  g_s=\frac{|V_s\cap V^{\mathrm{LCC}}|}{|V_s|}.
+\end{equation}
+The number of complete-graph components represented inside each polygon is
+also recorded. These component measures are not calculated from a separately
+clipped subcentre graph.
+
+\section{Centroids and road-node representatives}
+
+Each subcentre is represented initially by its true area-weighted geometric
+centroid, calculated from the complete projected polygon, including multipart
+geometry and holes:
+\begin{equation}
+  \mathbf{c}_s=
+  \frac{1}{\mu(P_s)}\int_{P_s}\mathbf{q}\,\mathrm{d}\mu(\mathbf{q}),
+  \label{eq:centroid}
+\end{equation}
+where $\mu$ denotes area in square metres. An interior label point is not
+substituted for the centroid; a centroid may lie outside a concave polygon.
+The CBD, denoted $s=0$, uses the existing project centre point rather than the
+centroid of the urban boundary.
+
+For routing, the centroid is snapped to the nearest nonisolated road vertex
+in the complete graph:
+\begin{equation}
+  r_s=\underset{v\in V:\,k_v>0}{\arg\min}
+      \left\|\mathbf{c}_s-\mathbf{q}_v\right\|_2,
+  \qquad
+  a_s=\left\|\mathbf{c}_s-\mathbf{q}_{r_s}\right\|_2.
+  \label{eq:snapping}
+\end{equation}
+The offset $a_s$ is reported in metres. The selected vertex is not required
+to lie inside the subcentre polygon or in the largest graph component.
+
+\section{Distances between subcentres and to the CBD}
+
+Let $\mathcal{P}(r_s,r_t)$ be the set of paths joining the snapped vertices
+of locations $s$ and $t$. Dijkstra's algorithm gives the length-weighted
+shortest-path distance:
+\begin{equation}
+  d_G(s,t)=\frac{1}{1000}
+       \min_{\pi\in\mathcal{P}(r_s,r_t)}\sum_{e\in\pi}\ell_e.
+  \label{eq:network-distance}
+\end{equation}
+Distances are in kilometres. Applying Eq.~\eqref{eq:network-distance} to
+$t=0$ gives each subcentre's network distance to the CBD. The corresponding
+centroid-to-centroid Euclidean reference distance is
+\begin{equation}
+  d_E(s,t)=\frac{\|\mathbf{c}_s-\mathbf{c}_t\|_2}{1000}.
+\end{equation}
+
+Network distances exclude off-network snapping offsets. A separate descriptive
+quantity adds the two straight-line offsets:
+\begin{equation}
+  d_G^{+}(s,t)=d_G(s,t)+\frac{a_s+a_t}{1000}.
+\end{equation}
+These added connectors are not surveyed or validated road segments and are
+not used to trace the mapped routes.
+
+The 44 subcentres produce
+\begin{equation}
+  N_{\mathrm{pairs}}=\binom{44}{2}=946
+\end{equation}
+unique unordered pairs. All pairs, together with the 44 CBD connections, are
+stored in a symmetric $45\times45$ distance matrix with zero diagonal. If
+locations are disconnected, the network distance is recorded as missing and
+an explicit connectivity flag is exported.
+
+For each subcentre, reachable-subcentre count and mean distance to reachable
+subcentres are calculated as
+\begin{align}
+  \mathcal{R}_s&=\{t\ne s:d_G(s,t)<\infty\},\\
+  n_s^{\mathrm{reach}}&=|\mathcal{R}_s|,
+  \qquad
+  \overline{d}_{G,s}
+     =\frac{1}{|\mathcal{R}_s|}\sum_{t\in\mathcal{R}_s}d_G(s,t).
+\end{align}
+The mean is missing when no other subcentre is reachable. In the constructed
+Paris graph, all 946 pairs and all 44 CBD connections are connected.
+
+\section{Modeled connections and shared-route intensity}
+
+One shortest path $\pi_{st}^{\star}$ is retained for every unordered
+subcentre pair $1\le s<t\le44$. Every pair receives an equal unit weight;
+no population, POI, employment, or observed trip-volume weighting is applied.
+If equal-length alternatives exist, the algorithm selects one; demand is not
+split between them.
+
+The number of selected pair routes using road edge $e$ is
+\begin{equation}
+  F_e=\sum_{s=1}^{43}\sum_{t=s+1}^{44}
+      \mathbb{1}\{e\in\pi_{st}^{\star}\},
+  \label{eq:route-count}
+\end{equation}
+and its share of the 946 pair routes is
+\begin{equation}
+  p_e=100\,\frac{F_e}{946}.
+\end{equation}
+The complete paths are exported as polylines. Road segments with $F_e>0$
+are mapped using increasing red intensity and line width, with a square-root
+display transformation to distinguish lower counts. Functional subcentre
+polygons, labels, the CBD, available building footprints, and the INSEE
+urban-area boundary provide spatial context. The CBD is displayed for
+orientation, but CBD routes are excluded from Eq.~\eqref{eq:route-count}.
+
+These counts describe modeled route overlap among the selected subcentres.
+They are not observed traffic volumes, measured commuting flows, or
+all-network edge betweenness. The mapped routes use 183,189 graph edges;
+the maximum is 106 pair routes on one edge.
+
+\section{Internal checks and interpretation}
+
+The implementation checks that the distance matrix is symmetric with zero
+diagonal and that all 946 unordered pairs are present once. Each traced path
+length is compared with its previously calculated pair distance, using a
+tolerance of $10^{-6}$~km. Edge-use totals satisfy the consistency identity
+\begin{equation}
+  \sum_{e\in E}F_e
+    =\sum_{s=1}^{43}\sum_{t=s+1}^{44}|\pi_{st}^{\star}|,
+\end{equation}
+where $|\pi_{st}^{\star}|$ is the number of graph edges on the selected path.
+These checks establish consistency between the computed tables, traced paths,
+and map layers; they do not establish the validity of individual travel routes.
+
+The graph is undirected and does not incorporate one-way restrictions,
+turn restrictions, access rules, barriers, travel speeds, or travel times.
+Original OSM node identifiers are unavailable in the geometry input, so
+grade separation cannot be guaranteed: coincident existing geometry vertices
+can be conflated, although new intersections are not inserted at line
+crossings. Nearby junctions, roundabouts, and dual carriageways are not
+consolidated. Road coverage is restricted to the study extent, so paths
+leaving that extent are unavailable. Results should therefore be interpreted
+as connectivity of the available geometry-based road graph rather than
+validated driving or pedestrian accessibility.
+
+\section{Reproducible implementation}
+
+The computations are implemented in the following R files in the same folder
+as this document:
+\begin{itemize}
+  \item \nolinkurl{214_compute_paris_subcentre_network_connectivity.R}:
+    graph construction, local node metrics, centroid snapping, pair distances,
+    and CBD distances.
+  \item \nolinkurl{215_map_all_paris_subcentre_network_connections.R}:
+    tracing the 946 shortest paths, counting shared-road use, and producing
+    the connection map with RCOI in the legend.
+\end{itemize}
+The implementation uses \texttt{sf}, \texttt{igraph}, \texttt{FNN},
+\texttt{dplyr}, \texttt{readr}, \texttt{ggplot2}, \texttt{ggrepel},
+\texttt{terra}, and \texttt{ragg}. Outputs include subcentre-level connectivity
+tables, pairwise distance tables, centroid snapping records, the distance
+matrix, route-count tables, and GeoPackage layers.
+
+\end{document}
