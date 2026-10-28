@@ -33,7 +33,7 @@ Rscript scripts/all_cities_local_node_connectivity/compute_local_node_connectivi
 
 `--patches=path.gpkg` replaces the default standardized GeoPackage; it must contain `classified_patches`, with `city`, `patch_label`, `hh_patch_id`, `rcoi_type`, and polygon geometry. Each row represents one subcentre. `--prepare` also saves `eligible_cities.csv`. Only long `--key=value` arguments and `--prepare` are supported.
 
-## Same local measures as Paris
+## Same local measures:
 
 For every subcentre the output includes:
 
