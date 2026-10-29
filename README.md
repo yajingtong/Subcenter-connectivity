@@ -1,6 +1,6 @@
 # Subcenter-connectivity
 
-# Local road-node connectivity for cities with more than five subcentres
+# Local road-node connectivity for cities （with more than five subcentres）
 
 ## Run
 
