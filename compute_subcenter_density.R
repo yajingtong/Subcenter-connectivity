@@ -54,11 +54,5 @@ lines<-c('# Road-network density by subcentre',
 '', '| City | Subcentre | Area (km²) | Road length (km) | Road density (km/km²) |', '|---|---|---:|---:|---:|')
 lines<-c(lines,vapply(seq_len(nrow(tab)),function(i)sprintf('| %s | %s | %.3f | %.3f | %.3f |',tab$city[i],tab$subcentre[i],tab$polygon_area_km2[i],tab$road_length_km[i],tab$road_density_km_per_km2[i]),character(1)))
 writeLines(lines,file.path(out,'ROAD_DENSITY_TABLE.md'))
-writeLines(c('Road length density, not node density: unique road-line length inside each subcentre divided by polygon area. Units km/km² (equivalent to km^-1).',
-'Uses the same patches and 14 highway categories as the existing six-city local-node analysis, including service roads and link roads; footpaths and railways are not added.',
-'Roads and polygons are projected to Lambert-93 EPSG:2154. Roads are geometrically intersected with each polygon; outside portions are excluded. Exact coincident linework is unioned to avoid duplicate counting.',
-'Separate parallel carriageways remain separate lines. No artificial connector lengths, routing distances or whole-road lengths extending outside the polygon are included.',
-'Existing full-network street-node and junction densities are joined by patch ID for comparison; they have units nodes/km² and are not used to compute road-length density.',
-'City summary density uses pooled road length / pooled subcentre polygon area, not the complete city area.',
 'Source manifest: scripts/all_cities_local_node_connectivity/road_sources.csv. Existing inputs and node analysis outputs are unchanged.'),file.path(out,'README.md'))
 print(summary)
